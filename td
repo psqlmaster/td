@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-##
-# td
 # Context-aware todo list manager
 
 # handle debugging
@@ -153,11 +151,11 @@ function pop_from_stack {
              echo -e "${RED}Error: Task $requested_id not found.${NC}"; exit 1
         fi
         
-        # Читаем конкретную строку по номеру
+        # Read a specific line by number 
         LINE=$(sed "${requested_id}q;d" "${TODO_LIST}")
         
     else
-        # 2. Если ID нет, используем авто-выбор (Context + LIFO/FIFO)
+        # 2. If there is no ID, use auto-selection (Context + LIFO/FIFO) 
         _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
         
         [[ "${QUEUE_MODE}" == "lifo" ]] && CMD="tail" || CMD="head"
@@ -170,7 +168,7 @@ function pop_from_stack {
 
     if [[ -z "${LINE}" ]]; then echo -e "${BLUE}No context todos.${NC}"; exit 0; fi
 
-    # --- ОБРАБОТКА ВЫБРАННОЙ ЗАДАЧИ ---
+    # --- PROCESSING OF THE SELECTED TASK ---
 
     RAW_TS=$(echo "${LINE}" | cut -d~ -f2)
     WHERE=$(echo "${LINE}" | cut -d~ -f3)
@@ -194,7 +192,7 @@ function pop_from_stack {
         fi
     fi
 
-    # Удаляем задачу по уникальному Timestamp (это надежнее, чем по номеру строки)
+    # Delete the task by unique Timestamp (this is more reliable than by row number) 
     if [[ "${PRESERVE_QUEUE}" == 'false' ]]; then
         if [[ $(uname -s) == "Darwin" ]]; then
             sed -i '' "/^~${RAW_TS}~/d" "${TODO_LIST}"
