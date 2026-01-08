@@ -13,8 +13,8 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 ## Installation
 
 ```bash
-git clone --depth 1 https://github.com/psqlmaster/td.git; \
-cd td; \
+git clone --depth 1 https://github.com/psqlmaster/td.git && \
+cd td && \
 sudo cp td /usr/local/bin
 ```
 
