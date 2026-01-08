@@ -33,7 +33,7 @@ function show_help {
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a, push [f] MSG   Add task (short for 'add')"
     echo -e "  l, list           List tasks with paths"
-    echo -e "  n, next, do       Take the next task (pop)"
+    echo -e "  n, next [N]       Take next task (automatic or by ID)"
     echo -e "  rm <N>            Remove task number <N>"
     echo -e "  c, clear          Clear all"
     echo -e "  h, help           Show this help"
@@ -136,19 +136,41 @@ function delete_todo {
 }
 
 function pop_from_stack {
+    local requested_id="$1"
+    local LINE=""
+    
     TODOS=$(wc -l "${TODO_LIST}" 2>/dev/null | cut -d' ' -f1)
     if [[ ${TODOS} -lt 1 ]]; then echo -e "${BLUE}Done!${NC}"; exit 0; fi
 
-    _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+    # --- ЛОГИКА ВЫБОРА ЗАДАЧИ ---
     
-    [[ "${QUEUE_MODE}" == "lifo" ]] && CMD="tail" || CMD="head"
+    if [[ -n "$requested_id" ]]; then
+        # 1. Если указан ID, берем конкретную строку
+        if ! [[ "$requested_id" =~ ^[0-9]+$ ]]; then
+             echo -e "${RED}Error: ID must be a number.${NC}"; exit 1
+        fi
+        if (( requested_id > TODOS )) || (( requested_id < 1 )); then
+             echo -e "${RED}Error: Task $requested_id not found.${NC}"; exit 1
+        fi
+        
+        # Читаем конкретную строку по номеру
+        LINE=$(sed "${requested_id}q;d" "${TODO_LIST}")
+        
+    else
+        # 2. Если ID нет, используем авто-выбор (Context + LIFO/FIFO)
+        _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+        
+        [[ "${QUEUE_MODE}" == "lifo" ]] && CMD="tail" || CMD="head"
 
-    LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
-    if [[ "${PROJECTS_ONLY}" == 'false' ]] && [[ -z "${LINE}" ]]; then
-        LINE=$($CMD -n 1 "${TODO_LIST}")
+        LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
+        if [[ "${PROJECTS_ONLY}" == 'false' ]] && [[ -z "${LINE}" ]]; then
+            LINE=$($CMD -n 1 "${TODO_LIST}")
+        fi
     fi
 
     if [[ -z "${LINE}" ]]; then echo -e "${BLUE}No context todos.${NC}"; exit 0; fi
+
+    # --- ОБРАБОТКА ВЫБРАННОЙ ЗАДАЧИ ---
 
     RAW_TS=$(echo "${LINE}" | cut -d~ -f2)
     WHERE=$(echo "${LINE}" | cut -d~ -f3)
@@ -172,6 +194,7 @@ function pop_from_stack {
         fi
     fi
 
+    # Удаляем задачу по уникальному Timestamp (это надежнее, чем по номеру строки)
     if [[ "${PRESERVE_QUEUE}" == 'false' ]]; then
         if [[ $(uname -s) == "Darwin" ]]; then
             sed -i '' "/^~${RAW_TS}~/d" "${TODO_LIST}"
@@ -197,7 +220,8 @@ case "$CMD" in
         ;;
     n|next|do|pop|pp)
         config_if_needed
-        pop_from_stack
+        # Передаем аргументы (номер задачи) в функцию
+        pop_from_stack "$1"
         ;;
     rm|del|delete)
         config_if_needed
@@ -216,7 +240,6 @@ case "$CMD" in
         exit 0
         ;;
     *)
-        # If the command is not recognized, we consider it to be the task text. 
         if [[ -n "$CMD" ]]; then
              config_if_needed
              push_to_stack "$CMD" "$@"

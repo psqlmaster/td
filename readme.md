@@ -2,7 +2,7 @@
 
 Unlike standard todo lists, `td` captures the **context** of your task. It records the working directory (or Git root) and optionally a specific file associated with the task. It operates on a stack (LIFO) or queue (FIFO) basis, designed to help developers push tasks onto a stack to clear their mental buffer and pop them off later to resume work.
 
-#### Features
+## Features
 
 *   **Context Aware**: Automatically records the project root or current directory.
 *   **File Linking**: Associates tasks with specific files (e.g., `td main.py "Refactor this"`).
@@ -10,7 +10,7 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 *   **Zero Dependencies**: Relies only on standard tools (`bash`, `date`, `sed`, `grep`).
 *   **Clean Interface**: Formatted output with abbreviated paths (e.g., `~/src/project`).
 
-#### Installation
+## Installation
 
 Download the script, make it executable, and move it to your path.
 
@@ -24,9 +24,9 @@ Download the script, make it executable, and move it to your path.
     sudo mv td /usr/local/bin/
     ```
 
-### Usage
+## Usage
 
-#### Adding Tasks (Push)
+### Adding Tasks (Push)
 
 You can add a task by simply typing the message.
 
@@ -46,7 +46,7 @@ td server.js "Fix memory leak in loop"
 Displays all tasks with their ID, timestamp, linked file, and directory context.
 
 ```bash
-td l
+`td l` or `td`
 ```
 
 **Output example:**
@@ -60,10 +60,20 @@ ID   Date          File            Task
 
 ### Completing Tasks (Next / Do)
 
-Retrieves the next task (top of the stack by default). It displays the task details and commands to return to the context.
+You can retrieve tasks in two ways: automatically or by ID.
+
+**1. Automatic (Context & Stack)**
+Retrieves the top task based on your stack settings (LIFO/FIFO) and current directory.
 
 ```bash
 td n
+```
+
+**2. Specific Task**
+Retrieves a specific task by its ID (from the `list` command), ignoring the stack order.
+
+```bash
+td n 3
 ```
 
 **Output example:**
@@ -77,7 +87,7 @@ Cmd:  vim server.js
 
 ### Removing Tasks
 
-To delete a specific task by its ID without "doing" it:
+To delete a specific task by its ID without "doing" it (no context is shown):
 
 ```bash
 td rm 2
@@ -107,5 +117,4 @@ PROJECTS_ONLY=false
 # If true, 'pop'/'next' will not delete the task from the list automatically
 PRESERVE_QUEUE=false
 ```
-
 
