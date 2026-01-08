@@ -8,9 +8,9 @@
 if [[ "${TRACE-0}" == "1" ]]; then set -o xtrace; fi
 
 # Vars
-CONFIG_DIR="${XDG_CONFIG_HOME:=${HOME}/.config}/todo"
-CONFIG_FILE="todorc"
-TODO_LIST="${CONFIG_DIR}/todo.lst"
+CONFIG_DIR="${XDG_CONFIG_HOME:=${HOME}/.config}/td"
+CONFIG_FILE="tdrc"
+TODO_LIST="${CONFIG_DIR}/td.lst"
 
 # Colors
 NC='\033[0m'
@@ -22,7 +22,7 @@ GRAY='\033[1;30m'
 CYAN='\033[0;36m'
 
 # Config defaults
-DEFAULT_ACTION=help
+DEFAULT_ACTION=list
 PRESERVE_QUEUE=false
 QUEUE_MODE=lifo
 PROJECTS_ONLY=false
@@ -205,9 +205,17 @@ function pop_from_stack {
 }
 
 # --- Main Logic ---
+config_if_needed
 
 if [[ $# -eq 0 ]]; then
-    show_todos
+    case "${DEFAULT_ACTION}" in
+        list)
+            show_todos
+            ;;
+        help|*)
+            show_help
+            ;;
+    esac
     exit 0
 fi
 
@@ -219,12 +227,9 @@ case "$CMD" in
         show_todos
         ;;
     n|next|do|pop|pp)
-        config_if_needed
-        # Передаем аргументы (номер задачи) в функцию
         pop_from_stack "$1"
         ;;
     rm|del|delete)
-        config_if_needed
         delete_todo "$1"
         ;;
     c|clear)
@@ -232,7 +237,6 @@ case "$CMD" in
         echo -e "${BLUE}Cleared.${NC}"
         ;;
     a|add|p|push)
-        config_if_needed
         push_to_stack "$@"
         ;;
     h|help|--help)
@@ -241,7 +245,6 @@ case "$CMD" in
         ;;
     *)
         if [[ -n "$CMD" ]]; then
-             config_if_needed
              push_to_stack "$CMD" "$@"
              exit 0
         fi
