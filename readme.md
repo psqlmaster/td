@@ -12,17 +12,11 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 
 ## Installation
 
-Download the script, make it executable, and move it to your path.
-
-1.  Save the script to a file named `td`.
-2.  Make it executable:
-    ```bash
-    chmod +x td
-    ```
-3.  Move it to a directory in your `$PATH`:
-    ```bash
-    sudo mv td /usr/local/bin/
-    ```
+```bash
+git clone --depth 1 https://github.com/psqlmaster/td.git; \
+cd td; \
+sudo cp td /usr/local/bin
+```
 
 ## Usage
 
@@ -46,7 +40,7 @@ td server.js "Fix memory leak in loop"
 Displays all tasks with their ID, timestamp, linked file, and directory context.
 
 ```bash
-`td l` or `td`
+`td l` or make DEFAULT_ACTION=list in `~/.config/td/tdrc` 
 ```
 
 **Output example:**
@@ -103,10 +97,13 @@ td clear
 
 ## Configuration
 
-On the first run, `td` creates a configuration file at `~/.config/todo/todorc`. You can edit this file to change the default behavior.
+On the first run, `td` creates a configuration file at `~/.config/td/tdrc`. You can edit this file to change the default behavior.
 
 ```bash
-# ~/.config/todo/todorc
+# ~/.config/td/tdrc
+
+# Default action when running 'td' without args: 'help' or 'list'
+DEFAULT_ACTION=help
 
 # Queue mode: 'lifo' (stack) or 'fifo' (queue)
 QUEUE_MODE=lifo
@@ -117,4 +114,3 @@ PROJECTS_ONLY=false
 # If true, 'pop'/'next' will not delete the task from the list automatically
 PRESERVE_QUEUE=false
 ```
-

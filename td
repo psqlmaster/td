@@ -22,7 +22,7 @@ GRAY='\033[1;30m'
 CYAN='\033[0;36m'
 
 # Config defaults
-DEFAULT_ACTION=list
+DEFAULT_ACTION=help
 PRESERVE_QUEUE=false
 QUEUE_MODE=lifo
 PROJECTS_ONLY=false
