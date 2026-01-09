@@ -9,6 +9,7 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 *   **Stack Semantics**: Defaults to LIFO (Last In, First Out) to handle interruptions immediately.
 *   **Searchable**: Filter tasks by text, filename, or directory path.
 *   **Safe**: Built-in Undo command and automatic backups before destructive actions.
+*   **History**: Deleted and completed tasks are saved to a history file (`~/.config/td/td.lst.hist`) so you can review and restore past items.
 *   **Zero Dependencies**: Relies only on standard tools (`bash`, `date`, `sed`, `grep`).
 *   **Clean Interface**: Formatted output with abbreviated paths (e.g., `~/src/project`).
 
@@ -62,6 +63,16 @@ Filter tasks by keyword. `td` performs a case-insensitive search across the task
 ```bash
 td s "memory"
 ```
+
+If you provide a search term, `td` will also search the history of removed/completed tasks and print matches from history in a distinct color under a "History matches:" section. This lets you find previously deleted items without restoring the full list.
+
+**Example (search both current list and history):**
+
+```bash
+td s "memory"
+```
+
+If there are matches in the history, they will be shown after the regular results.
 
 **Output example:**
 ```text
@@ -121,6 +132,26 @@ To remove all tasks:
 ```bash
 td clear
 ```
+
+When you clear the list (or remove/pop tasks), `td` appends the removed lines to the history file. Use the `hist` command to review these entries.
+
+### History
+
+`td` keeps a simple append-only history of removed or completed tasks in `~/.config/td/td.lst.hist`.
+
+- Format: each history row is prefixed with an operation token and timestamp, for example:
+
+	```text
+	DEL 167xxxxxxx ~1600000000~/home/user/project~/path/file~Task message~
+	```
+
+- Commands:
+	- `td hst` or `td history` — show removed/completed tasks (colorized and formatted).
+	- `td u` — undo the last change by restoring the most recent history entry back into the active list (step-wise undo).
+
+History output is colorized to distinguish it from the active todo list. This makes it easy to scan for previously removed items or to recover work you removed by mistake.
+
+If you would like more advanced history operations (restore a specific history entry, tail N entries, or clear history), those can be added as optional commands later.
 
 ## Configuration
 
