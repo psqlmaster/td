@@ -7,6 +7,8 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 *   **Context Aware**: Automatically records the project root or current directory.
 *   **File Linking**: Associates tasks with specific files (e.g., `td main.py "Refactor this"`).
 *   **Stack Semantics**: Defaults to LIFO (Last In, First Out) to handle interruptions immediately.
+*   **Searchable**: Filter tasks by text, filename, or directory path.
+*   **Safe**: Built-in Undo command and automatic backups before destructive actions.
 *   **Zero Dependencies**: Relies only on standard tools (`bash`, `date`, `sed`, `grep`).
 *   **Clean Interface**: Formatted output with abbreviated paths (e.g., `~/src/project`).
 
@@ -40,8 +42,9 @@ td server.js "Fix memory leak in loop"
 Displays all tasks with their ID, timestamp, linked file, and directory context.
 
 ```bash
-`td l` or make DEFAULT_ACTION=list in `~/.config/td/tdrc` 
+td l
 ```
+*(Tip: Set `DEFAULT_ACTION=list` in `~/.config/td/tdrc` to list tasks by running `td` without arguments).*
 
 **Output example:**
 ```text
@@ -51,6 +54,21 @@ ID   Date          File            Task
 3    01-08 12:00   styles.css      Adjust padding (~/work/frontend)
 ```
 *Shortcuts: `l`, `list`*
+
+### Searching Tasks
+
+Filter tasks by keyword. `td` performs a case-insensitive search across the task description, filename, and path.
+
+```bash
+td s "memory"
+```
+
+**Output example:**
+```text
+ID   Date          File            Task
+2    01-08 11:30   server.js       Fix memory leak (~/work/backend)
+```
+*Shortcuts: `s`, `search`, `find`*
 
 ### Completing Tasks (Next / Do)
 
@@ -81,11 +99,20 @@ Cmd:  vim server.js
 
 ### Removing Tasks
 
-To delete a specific task by its ID without "doing" it (no context is shown):
+To delete tasks by ID without "doing" them. You can delete multiple tasks at once.
 
 ```bash
-td rm 2
+td rm 2 4 5
 ```
+
+### Undo
+
+If you accidentally deleted a task or popped the wrong item, you can revert the last change.
+
+```bash
+td u
+```
+*Shortcuts: `u`, `undo`*
 
 ### Clearing the List
 

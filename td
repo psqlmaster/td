@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# td v1.2.0
 # Context-aware todo list manager
 
 # handle debugging
@@ -9,6 +10,7 @@ if [[ "${TRACE-0}" == "1" ]]; then set -o xtrace; fi
 CONFIG_DIR="${XDG_CONFIG_HOME:=${HOME}/.config}/td"
 CONFIG_FILE="tdrc"
 TODO_LIST="${CONFIG_DIR}/td.lst"
+BACKUP_FILE="${CONFIG_DIR}/td.lst.bak"
 
 # Colors
 NC='\033[0m'
@@ -25,17 +27,16 @@ PRESERVE_QUEUE=false
 QUEUE_MODE=lifo
 PROJECTS_ONLY=false
 
-# --- Functions ---
-
 function show_help {
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
-    echo -e "  a, push [f] MSG   Add task (short for 'add')"
-    echo -e "  l, list           List tasks with paths"
-    echo -e "  n, next [N]       Take next task (automatic or by ID)"
-    echo -e "  rm <N>            Remove task number <N>"
+    echo -e "  a, push [f] MSG   Add task"
+    echo -e "  l, list           List tasks"
+    echo -e "  s, search STR     Search tasks"
+    echo -e "  n, next [N]       Pop/Finish next task"
+    echo -e "  rm <N> [N...]     Remove task ID(s)"
+    echo -e "  u, undo           Undo last change"
     echo -e "  c, clear          Clear all"
-    echo -e "  h, help           Show this help"
-    echo -e "\n${GRAY}Implicit push: 'td fix bug' = 'td a fix bug'${NC}"
+    echo -e "  h, help           Show help"
 }
 
 function config_if_needed {
@@ -47,7 +48,26 @@ function config_if_needed {
     source "${CONFIG_DIR}/${CONFIG_FILE}"
 }
 
+function create_backup {
+    if [[ -f "${TODO_LIST}" ]]; then
+        cp "${TODO_LIST}" "${BACKUP_FILE}"
+    fi
+}
+
+function undo_last_change {
+    if [[ ! -f "${BACKUP_FILE}" ]]; then
+        echo -e "${RED}Error: No backup found.${NC}"
+        return
+    fi
+    
+    cp "${BACKUP_FILE}" "${TODO_LIST}"
+    echo -e "${BLUE}Undone.${NC} Restored previous state."
+    show_todos
+}
+
 function push_to_stack {
+    create_backup
+
     local _file=""
     if [[ -f "$1" ]]; then
         _file="$1"
@@ -61,7 +81,6 @@ function push_to_stack {
     fi
 
     _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
-    # ~TIMESTAMP~DIR~FILE~MSG~
     echo "~$(date +%s)~${_toplevel}~${_file}~${_msg}~" >> "${TODO_LIST}"
     echo -e "${BLUE}Saved.${NC} [$(wc -l "${TODO_LIST}" | cut -d' ' -f1)]"
 }
@@ -75,6 +94,8 @@ function find_when {
 }
 
 function show_todos {
+    local search_term="$1"
+    
     if [[ ! -s "${TODO_LIST}" ]]; then
         echo -e "${GRAY}Empty.${NC}"; return
     fi
@@ -82,11 +103,20 @@ function show_todos {
     printf "${GRAY}%-3s %-12s %-15s %s${NC}\n" "ID" "Date" "File" "Task"
     
     local counter=1
+    
     while read -r LINE; do
         _WHEN=$(echo "${LINE}" | cut -d~ -f2)
         WHERE=$(echo "${LINE}" | cut -d~ -f3)
         FILE=$(echo "${LINE}" | cut -d~ -f4)
         WHAT=$(echo "${LINE}" | cut -d~ -f5)
+        
+        if [[ -n "${search_term}" ]]; then
+            local context_str="${WHAT} ${FILE} ${WHERE}"
+            if ! echo "${context_str}" | grep -q -i -- "${search_term}"; then
+                ((counter++))
+                continue
+            fi
+        fi
         
         DISPLAY_WHERE="${WHERE/#$HOME/\~}"
         
@@ -106,31 +136,44 @@ function show_todos {
 }
 
 function delete_todo {
-    local id="$1"
-    if [[ -z "$id" ]] || ! [[ "$id" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Error: Use number (e.g., td rm 2)${NC}"
+    if [[ $# -eq 0 ]]; then
+        echo -e "${RED}Error: Use number(s) (e.g., td rm 2 3)${NC}"
         exit 1
     fi
 
-    local total
-    total=$(wc -l < "${TODO_LIST}")
+    for id in "$@"; do
+        if ! [[ "$id" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Error: '$id' is not a number.${NC}"
+            exit 1
+        fi
+    done
 
-    if (( id > total )) || (( id < 1 )); then
-        echo -e "${RED}Error: Task $id not found.${NC}"
-        exit 1
-    fi
+    create_backup
 
-    local line_content
-    line_content=$(sed "${id}q;d" "${TODO_LIST}")
-    local what=$(echo "${line_content}" | cut -d~ -f5)
+    local sorted_ids
+    sorted_ids=$(printf "%s\n" "$@" | sort -rn | uniq)
 
-    if [[ $(uname -s) == "Darwin" ]]; then
-        sed -i '' "${id}d" "${TODO_LIST}"
-    else
-        sed -i "${id}d" "${TODO_LIST}"
-    fi
+    for id in $sorted_ids; do
+        local total
+        total=$(wc -l < "${TODO_LIST}")
 
-    echo -e "${RED}Deleted ($id):${NC} $what"
+        if (( id > total )) || (( id < 1 )); then
+            echo -e "${RED}Error: Task $id not found (skipped).${NC}"
+            continue
+        fi
+
+        local line_content
+        line_content=$(sed "${id}q;d" "${TODO_LIST}")
+        local what=$(echo "${line_content}" | cut -d~ -f5)
+
+        if [[ $(uname -s) == "Darwin" ]]; then
+            sed -i '' "${id}d" "${TODO_LIST}"
+        else
+            sed -i "${id}d" "${TODO_LIST}"
+        fi
+
+        echo -e "${RED}Deleted ($id):${NC} $what"
+    done
 }
 
 function pop_from_stack {
@@ -140,24 +183,16 @@ function pop_from_stack {
     TODOS=$(wc -l "${TODO_LIST}" 2>/dev/null | cut -d' ' -f1)
     if [[ ${TODOS} -lt 1 ]]; then echo -e "${BLUE}Done!${NC}"; exit 0; fi
 
-    # --- ЛОГИКА ВЫБОРА ЗАДАЧИ ---
-    
     if [[ -n "$requested_id" ]]; then
-        # 1. Если указан ID, берем конкретную строку
         if ! [[ "$requested_id" =~ ^[0-9]+$ ]]; then
              echo -e "${RED}Error: ID must be a number.${NC}"; exit 1
         fi
         if (( requested_id > TODOS )) || (( requested_id < 1 )); then
              echo -e "${RED}Error: Task $requested_id not found.${NC}"; exit 1
         fi
-        
-        # Read a specific line by number 
         LINE=$(sed "${requested_id}q;d" "${TODO_LIST}")
-        
     else
-        # 2. If there is no ID, use auto-selection (Context + LIFO/FIFO) 
         _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
-        
         [[ "${QUEUE_MODE}" == "lifo" ]] && CMD="tail" || CMD="head"
 
         LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
@@ -168,8 +203,6 @@ function pop_from_stack {
 
     if [[ -z "${LINE}" ]]; then echo -e "${BLUE}No context todos.${NC}"; exit 0; fi
 
-    # --- PROCESSING OF THE SELECTED TASK ---
-
     RAW_TS=$(echo "${LINE}" | cut -d~ -f2)
     WHERE=$(echo "${LINE}" | cut -d~ -f3)
     FILE=$(echo "${LINE}" | cut -d~ -f4)
@@ -178,22 +211,15 @@ function pop_from_stack {
     DISPLAY_WHERE="${WHERE/#$HOME/\~}"
 
     echo -e "${GREEN}>>> NEXT TASK:${NC} ${WHAT}"
+    [[ "${WHERE}" != "${PWD}" ]] && echo -e "${GRAY}Dir:${NC}  cd ${DISPLAY_WHERE}" || echo -e "${GRAY}Dir:${NC}  (Current)"
     
-    if [[ "${WHERE}" != "${PWD}" ]]; then
-        echo -e "${GRAY}Dir:${NC}  cd ${DISPLAY_WHERE}"
-    else
-        echo -e "${GRAY}Dir:${NC}  (Current directory)"
-    fi
-
     if [[ -n "${FILE}" ]]; then
         echo -e "${GRAY}File:${NC} ${YELLOW}${FILE}${NC}"
-        if [[ -n "${EDITOR}" ]]; then
-             echo -e "${GRAY}Cmd:${NC}  ${EDITOR} ${FILE}"
-        fi
+        [[ -n "${EDITOR}" ]] && echo -e "${GRAY}Cmd:${NC}  ${EDITOR} ${FILE}"
     fi
 
-    # Delete the task by unique Timestamp (this is more reliable than by row number) 
     if [[ "${PRESERVE_QUEUE}" == 'false' ]]; then
+        create_backup
         if [[ $(uname -s) == "Darwin" ]]; then
             sed -i '' "/^~${RAW_TS}~/d" "${TODO_LIST}"
         else
@@ -203,16 +229,13 @@ function pop_from_stack {
 }
 
 # --- Main Logic ---
+
 config_if_needed
 
 if [[ $# -eq 0 ]]; then
     case "${DEFAULT_ACTION}" in
-        list)
-            show_todos
-            ;;
-        help|*)
-            show_help
-            ;;
+        list) show_todos ;;
+        help|*) show_help ;;
     esac
     exit 0
 fi
@@ -224,13 +247,20 @@ case "$CMD" in
     l|list|ls)
         show_todos
         ;;
+    s|search|find|grep)
+        show_todos "$*"
+        ;;
     n|next|do|pop|pp)
         pop_from_stack "$1"
         ;;
     rm|del|delete)
-        delete_todo "$1"
+        delete_todo "$@"
+        ;;
+    u|undo)
+        undo_last_change
         ;;
     c|clear)
+        create_backup
         > "${TODO_LIST}"
         echo -e "${BLUE}Cleared.${NC}"
         ;;
