@@ -37,7 +37,7 @@ function show_help {
     echo -e "  u, undo           Undo last change"
     echo -e "  c, clear          Clear all"
     echo -e "  h, help           Show help"
-    echo -e "  hst, history     Show removed tasks history"
+    echo -e "  hst, history      Show removed tasks history"
 }
 
 function config_if_needed {
