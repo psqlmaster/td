@@ -18,7 +18,7 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 ```bash
 git clone --depth 1 https://github.com/psqlmaster/td.git && \
 cd td && \
-sudo cp td /usr/local/bin && td h
+sudo cp td /usr/local/bin && td H
 ```
 
 ## Usage
@@ -92,6 +92,18 @@ Retrieves the top task based on your stack settings (LIFO/FIFO) and current dire
 td n
 ```
 
+
+You can control the display order of the list via the `LIST_ORDER` configuration option (added in recent updates). Valid values are `asc` (oldest first, default) and `desc` (newest first). To set it permanently, edit `~/.config/td/tdrc` and add:
+
+```bash
+LIST_ORDER=desc
+```
+
+You can also override the option for a single command by prefixing it in the shell:
+
+```bash
+LIST_ORDER=desc td l
+```
 **2. Specific Task**
 Retrieves a specific task by its ID (from the `list` command), ignoring the stack order.
 
@@ -125,6 +137,13 @@ td u
 ```
 *Shortcuts: `u`, `undo`*
 
+You can also restore a specific history entry by its history ID (HID):
+
+```bash
+td u 3
+```
+This restores the 3rd entry shown by the history command back into the active list.
+
 ### Clearing the List
 
 To remove all tasks:
@@ -146,8 +165,8 @@ When you clear the list (or remove/pop tasks), `td` appends the removed lines to
 	```
 
 - Commands:
-	- `td hst` or `td history` — show removed/completed tasks (colorized and formatted).
-	- `td u` — undo the last change by restoring the most recent history entry back into the active list (step-wise undo).
+	- `td h` or `td history` — show removed/completed tasks (colorized and formatted). Note: the help output now lists `H` for the help shortcut and `h` for history.
+	- `td u` — undo the last change by restoring the most recent history entry back into the active list (step-wise undo). You can also use `td u <HID>` to restore a specific history ID.
 
 History output is colorized to distinguish it from the active todo list. This makes it easy to scan for previously removed items or to recover work you removed by mistake.
 
@@ -171,4 +190,7 @@ PROJECTS_ONLY=false
 
 # If true, 'pop'/'next' will not delete the task from the list automatically
 PRESERVE_QUEUE=false
+
+# Display order for `td l` / `td` when listing tasks. Valid values: 'asc' (oldest first) or 'desc' (newest first).
+LIST_ORDER=asc
 ```

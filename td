@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.3.0
+# td v1.4.0
 # Context-aware todo list manager
 
 # handle debugging
@@ -26,32 +26,40 @@ DEFAULT_ACTION=help
 PRESERVE_QUEUE=false
 QUEUE_MODE=lifo
 PROJECTS_ONLY=false
+LIST_ORDER=asc
 
 function show_help {
+    echo -e "Minimal, context-aware todo list manager"
+    echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a, push [f] MSG   Add task"
     echo -e "  l, list           List tasks"
     echo -e "  s, search STR     Search tasks"
     echo -e "  n, next [N]       Pop/Finish next task"
     echo -e "  rm <N> [N...]     Remove task ID(s)"
-    echo -e "  u, undo           Undo last change"
-    echo -e "  c, clear          Clear all"
-    echo -e "  h, help           Show help"
-    echo -e "  hst, history      Show removed tasks history"
+    echo -e "  u, undo [HID]     Undo last change or restore specific history ID"
+    echo -e "  c, clear          Clear all (move to history)"
+    echo -e "  rmh <HID> [HID...] Remove history ID(s)"
+    echo -e "  ch, clearh        Clear history (permanent delete)"
+    echo -e "  H, help           Show help"
+    echo -e "  h, history        Show removed tasks history"
+    echo -e ""
+    echo -e "Config file: ${CYAN}cat ${CONFIG_DIR}/${CONFIG_FILE}${NC}"
+    echo -e "  Shows current configuration and available options:"
+    echo -e "    - LIST_ORDER=asc|desc        Display order for \`td\` list"
+    echo -e "    - QUEUE_MODE=lifo|fifo       How next task is selected"
+    echo -e "    - PRESERVE_QUEUE=true|false  Keep tasks when popping"
+    echo -e "    - PROJECTS_ONLY=true|false   Prefer project-scoped tasks"
+    echo -e "    - DEFAULT_ACTION=list|help   Default command when running \`td\` without args"
 }
 
 function config_if_needed {
     if [[ ! -d ${CONFIG_DIR} ]]; then mkdir -p "${CONFIG_DIR}"; fi
     if [[ ! -s ${CONFIG_DIR}/${CONFIG_FILE} ]]; then
-        { echo "DEFAULT_ACTION=${DEFAULT_ACTION}"; echo "PRESERVE_QUEUE=${PRESERVE_QUEUE}";
-          echo "PROJECTS_ONLY=${PROJECTS_ONLY}"; echo "QUEUE_MODE=${QUEUE_MODE}"; } > "${CONFIG_DIR}/${CONFIG_FILE}"
+                { echo "DEFAULT_ACTION=${DEFAULT_ACTION}"; echo "PRESERVE_QUEUE=${PRESERVE_QUEUE}";
+                    echo "PROJECTS_ONLY=${PROJECTS_ONLY}"; echo "QUEUE_MODE=${QUEUE_MODE}"; echo "LIST_ORDER=${LIST_ORDER}"; } > "${CONFIG_DIR}/${CONFIG_FILE}"
     fi
     source "${CONFIG_DIR}/${CONFIG_FILE}"
-}
-
-function create_backup {
-    # keep compatibility: ensure config directory exists
-    if [[ ! -d ${CONFIG_DIR} ]]; then mkdir -p "${CONFIG_DIR}"; fi
 }
 
 function append_history {
@@ -64,39 +72,66 @@ function append_history {
 }
 
 function undo_last_change {
-    # Try step-wise undo from history first
-    if [[ -s "${HIST_FILE}" ]]; then
-        local last_entry
-        last_entry=$(tail -n 1 "${HIST_FILE}")
+    local hid="$1"
+
+    if [[ ! -s "${HIST_FILE}" ]]; then
+        echo -e "${RED}Error: Nothing to undo (history is empty).${NC}"
+        return
+    fi
+
+    # If a history id is provided, restore that specific entry, otherwise restore last
+    local entry_line
+    if [[ -n "${hid}" ]]; then
+        if ! [[ "${hid}" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Error: History ID must be a number.${NC}"
+            return 1
+        fi
+
+        local total
+        total=$(wc -l < "${HIST_FILE}")
+        if (( hid < 1 )) || (( hid > total )); then
+            echo -e "${RED}Error: History ID ${hid} not found.${NC}"
+            return 1
+        fi
+
+        # extract the requested history line
+        entry_line=$(sed "${hid}q;d" "${HIST_FILE}")
+
+        # remove that specific history line
+        if [[ $(uname -s) == "Darwin" ]]; then
+            sed -i '' -e "${hid}d" "${HIST_FILE}"
+        else
+            sed -i "${hid}d" "${HIST_FILE}"
+        fi
+    else
+        # default: take last history entry
+        entry_line=$(tail -n 1 "${HIST_FILE}")
         # remove last history line
         if [[ $(uname -s) == "Darwin" ]]; then
             sed -i '' -e '$d' "${HIST_FILE}"
         else
             sed -i '$d' "${HIST_FILE}"
         fi
-
-        # extract raw_line (history format: DEL <op_ts> <raw_line>)
-        local raw_line
-        raw_line=$(echo "${last_entry}" | cut -d' ' -f3-)
-
-        # restore the raw line to TODO_LIST and re-sort by internal timestamp
-        echo "${raw_line}" >> "${TODO_LIST}"
-        # reorder by the internal timestamp (field 2 between tildes)
-        awk -F'~' '{print $2 "\t" $0}' "${TODO_LIST}" | sort -n | cut -f2- > "${TODO_LIST}.tmp" && mv "${TODO_LIST}.tmp" "${TODO_LIST}"
-
-        echo -e "${BLUE}Undone:${NC} Restored last change from history."
-        show_todos
-        return
     fi
 
-    # No history available
-    echo -e "${RED}Error: Nothing to undo (history is empty).${NC}"
-    return
+    # extract raw_line (history format: DEL <op_ts> <raw_line>)
+    local raw_line
+    raw_line=$(echo "${entry_line}" | cut -d' ' -f3-)
+
+    # restore the raw line to TODO_LIST and re-sort by internal timestamp
+    echo "${raw_line}" >> "${TODO_LIST}"
+    # reorder by the internal timestamp (field 2 between tildes)
+    awk -F'~' '{print $2 "\t" $0}' "${TODO_LIST}" | sort -n | cut -f2- > "${TODO_LIST}.tmp" && mv "${TODO_LIST}.tmp" "${TODO_LIST}"
+
+    if [[ -n "${hid}" ]]; then
+        echo -e "${BLUE}Undone:${NC} Restored history ID ${hid}."
+    else
+        echo -e "${BLUE}Undone:${NC} Restored last change from history."
+    fi
+    show_todos
 }
 
 function push_to_stack {
-    create_backup
-
     local _file=""
     if [[ -f "$1" ]]; then
         _file="$1"
@@ -128,12 +163,17 @@ function show_todos {
     if [[ ! -s "${TODO_LIST}" ]]; then
         echo -e "${GRAY}Empty.${NC}"; return
     fi
-
     printf "${GRAY}%-3s %-12s %-15s %s${NC}\n" "ID" "Date" "File" "Task"
-    
+
     local counter=1
-    
-    while read -r LINE; do
+
+    # determine ordering: asc (default) or desc
+    local order="${LIST_ORDER:-asc}"
+
+    if [[ "${order}" == "desc" ]]; then
+        # portable reverse read using awk (works on Linux and macOS)
+        mapfile -t LINES < <(awk '{lines[NR] = $0} END {for (i=NR;i>=1;i--) print lines[i]}' "${TODO_LIST}")
+        for LINE in "${LINES[@]}"; do
         _WHEN=$(echo "${LINE}" | cut -d~ -f2)
         WHERE=$(echo "${LINE}" | cut -d~ -f3)
         FILE=$(echo "${LINE}" | cut -d~ -f4)
@@ -159,9 +199,40 @@ function show_todos {
         
         printf "${GREEN}%-3s${NC} %-12s %-15b %s ${CYAN}(%s)${NC}\n" \
             "${counter}" "${WHEN}" "${DISPLAY_FILE}" "${WHAT}" "${DISPLAY_WHERE}"
-            
+
         ((counter++))
-    done < "${TODO_LIST}"
+        done
+    else
+        while read -r LINE; do
+            _WHEN=$(echo "${LINE}" | cut -d~ -f2)
+            WHERE=$(echo "${LINE}" | cut -d~ -f3)
+            FILE=$(echo "${LINE}" | cut -d~ -f4)
+            WHAT=$(echo "${LINE}" | cut -d~ -f5)
+
+            if [[ -n "${search_term}" ]]; then
+                local context_str="${WHAT} ${FILE} ${WHERE}"
+                if ! echo "${context_str}" | grep -q -i -- "${search_term}"; then
+                    ((counter++))
+                    continue
+                fi
+            fi
+
+            DISPLAY_WHERE="${WHERE/#$HOME/\~}"
+
+            if [[ -n "${FILE}" ]]; then
+                DISPLAY_FILE="${YELLOW}${FILE}${NC}"
+            else
+                DISPLAY_FILE="${GRAY}--${NC}"
+            fi
+
+            find_when "${_WHEN}"
+
+            printf "${GREEN}%-3s${NC} %-12s %-15b %s ${CYAN}(%s)${NC}\n" \
+                "${counter}" "${WHEN}" "${DISPLAY_FILE}" "${WHAT}" "${DISPLAY_WHERE}"
+
+            ((counter++))
+        done < "${TODO_LIST}"
+    fi
 }
 
 function show_history {
@@ -210,6 +281,55 @@ function show_history {
 
         ((counter++))
     done < "${HIST_FILE}"
+}
+
+function delete_history {
+    if [[ $# -eq 0 ]]; then
+        echo -e "${RED}Error: Use history ID(s) (e.g., td rmh 2 3)${NC}"
+        exit 1
+    fi
+
+    for id in "$@"; do
+        if ! [[ "$id" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Error: '$id' is not a number.${NC}"
+            exit 1
+        fi
+    done
+
+    create_backup
+
+    local sorted_ids
+    sorted_ids=$(printf "%s\n" "$@" | sort -rn | uniq)
+
+    for id in $sorted_ids; do
+        local total
+        total=$(wc -l < "${HIST_FILE}")
+
+        if (( id > total )) || (( id < 1 )); then
+            echo -e "${RED}Error: History $id not found (skipped).${NC}"
+            continue
+        fi
+
+        local line_content
+        line_content=$(sed "${id}q;d" "${HIST_FILE}")
+        local raw_line
+        raw_line=$(echo "${line_content}" | cut -d' ' -f3-)
+        local what
+        what=$(echo "${raw_line}" | cut -d~ -f5)
+
+        if [[ $(uname -s) == "Darwin" ]]; then
+            sed -i '' "${id}d" "${HIST_FILE}"
+        else
+            sed -i "${id}d" "${HIST_FILE}"
+        fi
+
+        echo -e "${RED}Deleted history ($id):${NC} $what"
+    done
+}
+
+function clear_history {
+    > "${HIST_FILE}"
+    echo -e "${BLUE}History cleared.${NC}"
 }
 
 function delete_todo {
@@ -299,7 +419,6 @@ function pop_from_stack {
     fi
 
     if [[ "${PRESERVE_QUEUE}" == 'false' ]]; then
-        create_backup
         # normalize LINE (strip possible leading line-number from grep -n)
         local raw_line
         raw_line="${LINE}"
@@ -353,11 +472,13 @@ case "$CMD" in
     rm|del|delete)
         delete_todo "$@"
         ;;
+    rmh|delh|rmhist)
+        delete_history "$@"
+        ;;
     u|undo)
         undo_last_change
         ;;
     c|clear)
-        create_backup
         # save all current lines to history
         if [[ -s "${TODO_LIST}" ]]; then
             while read -r _line; do
@@ -367,14 +488,18 @@ case "$CMD" in
         > "${TODO_LIST}"
         echo -e "${BLUE}Cleared.${NC}"
         ;;
+
+    ch|clearch|clearh)
+        clear_history
+        ;;
     a|add|p|push)
         push_to_stack "$@"
         ;;
-    h|help|--help)
+    H|help|--help)
         show_help
         exit 0
         ;;
-    hst|history)
+    h|history)
         show_history
         exit 0
         ;;
