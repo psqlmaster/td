@@ -19,8 +19,7 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 
 ```bash
 git clone --depth 1 https://github.com/psqlmaster/td.git && \
-cd td && \
-sudo cp td /usr/local/bin && td H
+cd td && sudo cp td /usr/local/bin && sudo chmod +x /usr/local/bin/td && td H
 ```
 
 ## Usage
