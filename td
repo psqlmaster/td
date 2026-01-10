@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.4.1
+# td v1.4.2
 # Context-aware todo list manager
 
 # handle debugging
