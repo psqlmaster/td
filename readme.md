@@ -180,7 +180,7 @@ On the first run, `td` creates a configuration file at `~/.config/td/tdrc`. You 
 # ~/.config/td/tdrc
 
 # Default action when running 'td' without args: 'help' or 'list'
-DEFAULT_ACTION=help
+DEFAULT_ACTION=list
 
 # Queue mode: 'lifo' (stack) or 'fifo' (queue)
 QUEUE_MODE=lifo
@@ -192,5 +192,5 @@ PROJECTS_ONLY=false
 PRESERVE_QUEUE=false
 
 # Display order for `td l` / `td` when listing tasks. Valid values: 'asc' (oldest first) or 'desc' (newest first).
-LIST_ORDER=asc
+LIST_ORDER=desc
 ```

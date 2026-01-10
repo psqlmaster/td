@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.4.0
+# td v1.4.1
 # Context-aware todo list manager
 
 # handle debugging
@@ -22,11 +22,11 @@ GRAY='\033[1;30m'
 CYAN='\033[0;36m'
 
 # Config defaults
-DEFAULT_ACTION=help
+DEFAULT_ACTION=list
 PRESERVE_QUEUE=false
-QUEUE_MODE=lifo
 PROJECTS_ONLY=false
-LIST_ORDER=asc
+QUEUE_MODE=lifo
+LIST_ORDER=desc
 
 function show_help {
     echo -e "Minimal, context-aware todo list manager"
@@ -59,7 +59,17 @@ function config_if_needed {
                 { echo "DEFAULT_ACTION=${DEFAULT_ACTION}"; echo "PRESERVE_QUEUE=${PRESERVE_QUEUE}";
                     echo "PROJECTS_ONLY=${PROJECTS_ONLY}"; echo "QUEUE_MODE=${QUEUE_MODE}"; echo "LIST_ORDER=${LIST_ORDER}"; } > "${CONFIG_DIR}/${CONFIG_FILE}"
     fi
+
+    # Source config to apply config values over defaults.
+    # Then re-apply exported environment variables so env takes precedence: env > config > defaults.
     source "${CONFIG_DIR}/${CONFIG_FILE}"
+
+    for v in DEFAULT_ACTION PRESERVE_QUEUE PROJECTS_ONLY QUEUE_MODE LIST_ORDER; do
+        if printenv "${v}" >/dev/null 2>&1; then
+            val=$(printenv "${v}")
+            printf -v "${v}" '%s' "${val}"
+        fi
+    done
 }
 
 function append_history {
@@ -157,6 +167,40 @@ function find_when {
     fi
 }
 
+function print_todo_line {
+    # print_todo_line <ID> <LINE> [search_term]
+    local id="$1"
+    local LINE="$2"
+    local search_term="$3"
+
+    local _WHEN WHERE FILE WHAT
+    _WHEN=$(echo "${LINE}" | cut -d~ -f2)
+    WHERE=$(echo "${LINE}" | cut -d~ -f3)
+    FILE=$(echo "${LINE}" | cut -d~ -f4)
+    WHAT=$(echo "${LINE}" | cut -d~ -f5)
+
+    if [[ -n "${search_term}" ]]; then
+        local context_str="${WHAT} ${FILE} ${WHERE}"
+        if ! echo "${context_str}" | grep -q -i -- "${search_term}"; then
+            return 1
+        fi
+    fi
+
+    DISPLAY_WHERE="${WHERE/#$HOME/\~}"
+    if [[ -n "${FILE}" ]]; then
+        DISPLAY_FILE="${YELLOW}${FILE}${NC}"
+    else
+        DISPLAY_FILE="${GRAY}--${NC}"
+    fi
+
+    find_when "${_WHEN}"
+
+    printf "${GREEN}%-3s${NC} %-12s %-15b %s ${CYAN}(%s)${NC}\n" \
+        "${id}" "${WHEN}" "${DISPLAY_FILE}" "${WHAT}" "${DISPLAY_WHERE}"
+
+    return 0
+}
+
 function show_todos {
     local search_term="$1"
     
@@ -166,71 +210,23 @@ function show_todos {
     printf "${GRAY}%-3s %-12s %-15s %s${NC}\n" "ID" "Date" "File" "Task"
 
     local counter=1
-
-    # determine ordering: asc (default) or desc
     local order="${LIST_ORDER:-asc}"
+    # normalize: remove CR, lowercase
+    order="${order//$'\r'/}"
+    order="${order,,}"
 
     if [[ "${order}" == "desc" ]]; then
-        # portable reverse read using awk (works on Linux and macOS)
         mapfile -t LINES < <(awk '{lines[NR] = $0} END {for (i=NR;i>=1;i--) print lines[i]}' "${TODO_LIST}")
         for LINE in "${LINES[@]}"; do
-        _WHEN=$(echo "${LINE}" | cut -d~ -f2)
-        WHERE=$(echo "${LINE}" | cut -d~ -f3)
-        FILE=$(echo "${LINE}" | cut -d~ -f4)
-        WHAT=$(echo "${LINE}" | cut -d~ -f5)
-        
-        if [[ -n "${search_term}" ]]; then
-            local context_str="${WHAT} ${FILE} ${WHERE}"
-            if ! echo "${context_str}" | grep -q -i -- "${search_term}"; then
+            if print_todo_line "${counter}" "${LINE}" "${search_term}"; then
                 ((counter++))
-                continue
             fi
-        fi
-        
-        DISPLAY_WHERE="${WHERE/#$HOME/\~}"
-        
-        if [[ -n "${FILE}" ]]; then
-            DISPLAY_FILE="${YELLOW}${FILE}${NC}"
-        else
-            DISPLAY_FILE="${GRAY}--${NC}"
-        fi
-
-        find_when "${_WHEN}"
-        
-        printf "${GREEN}%-3s${NC} %-12s %-15b %s ${CYAN}(%s)${NC}\n" \
-            "${counter}" "${WHEN}" "${DISPLAY_FILE}" "${WHAT}" "${DISPLAY_WHERE}"
-
-        ((counter++))
         done
     else
         while read -r LINE; do
-            _WHEN=$(echo "${LINE}" | cut -d~ -f2)
-            WHERE=$(echo "${LINE}" | cut -d~ -f3)
-            FILE=$(echo "${LINE}" | cut -d~ -f4)
-            WHAT=$(echo "${LINE}" | cut -d~ -f5)
-
-            if [[ -n "${search_term}" ]]; then
-                local context_str="${WHAT} ${FILE} ${WHERE}"
-                if ! echo "${context_str}" | grep -q -i -- "${search_term}"; then
-                    ((counter++))
-                    continue
-                fi
+            if print_todo_line "${counter}" "${LINE}" "${search_term}"; then
+                ((counter++))
             fi
-
-            DISPLAY_WHERE="${WHERE/#$HOME/\~}"
-
-            if [[ -n "${FILE}" ]]; then
-                DISPLAY_FILE="${YELLOW}${FILE}${NC}"
-            else
-                DISPLAY_FILE="${GRAY}--${NC}"
-            fi
-
-            find_when "${_WHEN}"
-
-            printf "${GREEN}%-3s${NC} %-12s %-15b %s ${CYAN}(%s)${NC}\n" \
-                "${counter}" "${WHEN}" "${DISPLAY_FILE}" "${WHAT}" "${DISPLAY_WHERE}"
-
-            ((counter++))
         done < "${TODO_LIST}"
     fi
 }
@@ -296,8 +292,6 @@ function delete_history {
         fi
     done
 
-    create_backup
-
     local sorted_ids
     sorted_ids=$(printf "%s\n" "$@" | sort -rn | uniq)
 
@@ -344,8 +338,6 @@ function delete_todo {
             exit 1
         fi
     done
-
-    create_backup
 
     local sorted_ids
     sorted_ids=$(printf "%s\n" "$@" | sort -rn | uniq)
@@ -429,16 +421,12 @@ function pop_from_stack {
         # save to history before removing
         append_history "${raw_line}"
 
-        if [[ $(uname -s) == "Darwin" ]]; then
-            sed -i '' "/^~${RAW_TS}~/d" "${TODO_LIST}"
-        else
-            sed -i "/^~${RAW_TS}~/d" "${TODO_LIST}"
-        fi
+        # Remove the exact raw line to avoid deleting other items with the same timestamp
+        awk -v r="${raw_line}" 'BEGIN{IGNORECASE=0} $0!=r{print}' "${TODO_LIST}" > "${TODO_LIST}.tmp" && mv "${TODO_LIST}.tmp" "${TODO_LIST}"
     fi
 }
 
 # --- Main Logic ---
-
 config_if_needed
 
 if [[ $# -eq 0 ]]; then
