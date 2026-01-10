@@ -421,8 +421,13 @@ function pop_from_stack {
         # save to history before removing
         append_history "${raw_line}"
 
-        # Remove the exact raw line to avoid deleting other items with the same timestamp
-        awk -v r="${raw_line}" 'BEGIN{IGNORECASE=0} $0!=r{print}' "${TODO_LIST}" > "${TODO_LIST}.tmp" && mv "${TODO_LIST}.tmp" "${TODO_LIST}"
+        # Remove by timestamp (no temp file). This deletes any line containing ~<timestamp>~.
+        # Note: this will remove all lines with the same internal timestamp.
+        if [[ $(uname -s) == "Darwin" ]]; then
+            sed -i '' "/~${RAW_TS}~/d" "${TODO_LIST}"
+        else
+            sed -i "/~${RAW_TS}~/d" "${TODO_LIST}"
+        fi
     fi
 }
 
