@@ -1,3 +1,5 @@
+![](td.png)
+
 🔖 **td** is a minimal, context-aware todo list manager for the command line, written in Bash.
 
 Unlike standard todo lists, `td` captures the **context** of your task. It records the working directory (or Git root) and optionally a specific file associated with the task. It operates on a stack (LIFO) or queue (FIFO) basis, designed to help developers push tasks onto a stack to clear their mental buffer and pop them off later to resume work.
