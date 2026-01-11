@@ -37,8 +37,11 @@ cat "${XDG_CONFIG_HOME}/td/tdrc" || true
 
 echo "\n=== Add tasks ==="
 "${TD_PROG}" a "First task (no file)"
+sleep 1
 "${TD_PROG}" a README.md "Edit README for examples"
+sleep 1
 "${TD_PROG}" a src/main.py "Implement feature X"
+sleep 1
 
 echo "\n=== List (default LIST_ORDER=desc) ==="
 LIST_ORDER=desc "${TD_PROG}" l
@@ -62,7 +65,9 @@ echo "\n=== Pop/next (automatic context) ==="
 
 echo "\n=== Add two more tasks ==="
 "${TD_PROG}" a util.sh "Write helper script"
+sleep 1
 "${TD_PROG}" a docs.txt "Update docs"
+sleep 1
 
 echo "\n=== List now ==="
 "${TD_PROG}" l
@@ -103,7 +108,9 @@ echo "\n=== Clear history (ch) ==="
 echo "\n=== Test clear active list (c) ==="
 # add items again
 "${TD_PROG}" a tmp1 "temp 1"
+sleep 1
 "${TD_PROG}" a tmp2 "temp 2"
+sleep 1
 "${TD_PROG}" l
 "${TD_PROG}" c
 "${TD_PROG}" l || true
@@ -115,7 +122,9 @@ echo "PRESERVE_QUEUE=false" >> "${XDG_CONFIG_HOME}/td/tdrc"
 # ensure list is shown in oldest-first order for FIFO check
 echo "LIST_ORDER=asc" >> "${XDG_CONFIG_HOME}/td/tdrc"
 "${TD_PROG}" a fifo1 "fifo first"
+sleep 1
 "${TD_PROG}" a fifo2 "fifo second"
+sleep 1
 echo "List (should show fifo1 then fifo2):"
 "${TD_PROG}" l
 echo "Pop (should pop fifo1):"
@@ -125,6 +134,7 @@ echo "\n=== Test PRESERVE_QUEUE=true ==="
 # enable preserve, add tasks and pop, item should remain
 sed -i 's/PRESERVE_QUEUE=false/PRESERVE_QUEUE=true/' "${XDG_CONFIG_HOME}/td/tdrc" || true
 "${TD_PROG}" a preserve_me "should remain after pop"
+sleep 1
 echo "Before pop:"
 "${TD_PROG}" l
 echo "Pop with preserve (task should remain):"
