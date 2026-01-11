@@ -32,17 +32,18 @@ function show_help {
     echo -e "Minimal, context-aware todo list manager"
     echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
-    echo -e "  a, push [f] MSG   Add task"
-    echo -e "  l, list           List tasks"
-    echo -e "  s, search STR     Search tasks"
-    echo -e "  n, next [N]       Pop/Finish next task"
-    echo -e "  rm <N> [N...]     Remove task ID(s)"
-    echo -e "  u, undo [HID]     Undo last change or restore specific history ID"
-    echo -e "  c, clear          Clear all (move to history)"
-    echo -e "  rmh <HID> [HID...] Remove history ID(s)"
-    echo -e "  ch, clearh        Clear history (permanent delete)"
-    echo -e "  H, help           Show help"
-    echo -e "  h, history        Show removed tasks history"
+    echo -e "  a|push [f] MSG       Add task"
+    echo -e "  l|list or nothing    List tasks"
+    echo -e "  .|here               Show current dir tasks"
+    echo -e "  s|search STR         Search tasks"
+    echo -e "  n|next [N]           Pop/Finish next task"
+    echo -e "  rm <N> [N...]        Remove task ID(s)"
+    echo -e "  u|undo [HID]         Undo last change or restore specific history ID"
+    echo -e "  c|clear              Clear all (move to history)"
+    echo -e "  rmh <HID> [HID...]   Remove history ID(s)"
+    echo -e "  ch|clearh            Clear history (permanent delete)"
+    echo -e "  H|help               Show help"
+    echo -e "  h|history            Show removed tasks history"
     echo -e ""
     echo -e "Config file: ${CYAN}cat ${CONFIG_DIR}/${CONFIG_FILE}${NC}"
     echo -e "  Shows current configuration and available options:"
@@ -172,6 +173,14 @@ function print_todo_line {
     local id="$1"
     local LINE="$2"
     local search_term="$3"
+    local _WHEN WHERE FILE WHAT
+    WHERE=$(echo "${LINE}" | cut -d~ -f3)
+
+    if [[ -n "${TD_ONLY_CONTEXT}" ]]; then
+        if [[ "${WHERE}" != "${TD_ONLY_CONTEXT}" ]]; then
+            return 1
+        fi
+    fi
 
     local _WHEN WHERE FILE WHAT
     _WHEN=$(echo "${LINE}" | cut -d~ -f2)
@@ -470,6 +479,12 @@ case "$CMD" in
         ;;
     u|undo)
         undo_last_change
+        ;;
+    here|.)
+        # determine the current context in the same way as td does when creating a task. 
+        CURRENT_CTX=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+        # run show_todos with the filter variable set 
+        TD_ONLY_CONTEXT="$CURRENT_CTX" show_todos
         ;;
     c|clear)
         # save all current lines to history

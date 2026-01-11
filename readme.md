@@ -44,7 +44,12 @@ td server.js "Fix memory leak in loop"
 Displays all tasks with their ID, timestamp, linked file, and directory context.
 
 ```bash
-td l
+`td l` or `td` 
+```
+Show current dir tasks
+
+```bash
+`td .` or `td here` 
 ```
 *(Tip: Set `DEFAULT_ACTION=list` in `~/.config/td/tdrc` to list tasks by running `td` without arguments).*
 
