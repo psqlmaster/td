@@ -7,12 +7,13 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 ## Features
 
 *   **Context Aware**: Automatically records the project root or current directory.
+*   **Context Actions**: List and execute tasks specifically for the current directory using `td . [N]`.
 *   **File Linking**: Associates tasks with specific files (e.g., `td main.py "Refactor this"`).
 *   **Stack Semantics**: Defaults to LIFO (Last In, First Out) to handle interruptions immediately.
 *   **Searchable**: Filter tasks by text, filename, or directory path.
-*   **Safe**: Built-in Undo command and automatic backups before destructive actions.
-*   **History**: Deleted and completed tasks are saved to a history file (`~/.config/td/td.lst.hist`) so you can review and restore past items.
-*   **Zero Dependencies**: Relies only on standard tools (`bash`, `date`, `sed`, `grep`).
+*   **Safe**: Built-in Undo, history management, and on-demand backups.
+*   **History**: Deleted and completed tasks are saved to a history file. You can search, restore, or selectively delete history items.
+*   **Zero Dependencies**: Relies only on standard tools (`bash`, `date`, `sed`, `grep`, `awk`).
 *   **Clean Interface**: Formatted output with abbreviated paths (e.g., `~/src/project`).
 
 ## Installation
@@ -44,14 +45,9 @@ td server.js "Fix memory leak in loop"
 Displays all tasks with their ID, timestamp, linked file, and directory context.
 
 ```bash
-`td l` or `td` 
+td l
+# or just `td` if DEFAULT_ACTION=list
 ```
-Show current dir tasks
-
-```bash
-`td .` or `td here` 
-```
-*(Tip: Set `DEFAULT_ACTION=list` in `~/.config/td/tdrc` to list tasks by running `td` without arguments).*
 
 **Output example:**
 ```text
@@ -62,59 +58,46 @@ ID   Date          File            Task
 ```
 *Shortcuts: `l`, `list`*
 
-### Searching Tasks
+### Context Actions (Here)
 
-Filter tasks by keyword. `td` performs a case-insensitive search across the task description, filename, and path.
+You can work strictly within the current directory context using the `.` command.
 
-```bash
-td s "memory"
-```
+1.  **List local tasks:**
+    ```bash
+    td .
+    ```
+    Shows tasks only for the current folder (numbered 1, 2, 3... based on your `LIST_ORDER`).
 
-If you provide a search term, `td` will also search the history of removed/completed tasks and print matches from history in a distinct color under a "History matches:" section. This lets you find previously deleted items without restoring the full list.
+2.  **Do a specific local task:**
+    ```bash
+    td . 2
+    ```
+    Executes the 2nd task from the *visible local list*. `td` automatically calculates the real Global ID for you.
 
-**Example (search both current list and history):**
+3.  **Do the next local task:**
+    ```bash
+    td . n
+    ```
+    Executes the 1st task from the visible local list (alias for `td . 1`).
 
-```bash
-td s "memory"
-```
-
-If there are matches in the history, they will be shown after the regular results.
-
-**Output example:**
-```text
-ID   Date          File            Task
-2    01-08 11:30   server.js       Fix memory leak (~/work/backend)
-```
-*Shortcuts: `s`, `search`, `find`*
+*Shortcuts: `.`, `here`*
 
 ### Completing Tasks (Next / Do)
 
-You can retrieve tasks in two ways: automatically or by ID.
+You can retrieve/finish tasks globally using the standard `next` command.
 
 **1. Automatic (Context & Stack)**
-Retrieves the top task based on your stack settings (LIFO/FIFO) and current directory.
+Retrieves the top task based on your stack settings (LIFO/FIFO) and current directory priority.
 
 ```bash
 td n
 ```
 
-
-You can control the display order of the list via the `LIST_ORDER` configuration option (added in recent updates). Valid values are `asc` (oldest first, default) and `desc` (newest first). To set it permanently, edit `~/.config/td/tdrc` and add:
-
-```bash
-LIST_ORDER=desc
-```
-
-You can also override the option for a single command by prefixing it in the shell:
-
-```bash
-LIST_ORDER=desc td l
-```
 **2. Specific Task**
-Retrieves a specific task by its ID (from the `list` command), ignoring the stack order.
+Retrieves a specific task by its **Global ID** (from the main `list` command).
 
 ```bash
-td n 3
+td n 54
 ```
 
 **Output example:**
@@ -126,6 +109,18 @@ Cmd:  vim server.js
 ```
 *Shortcuts: `n`, `next`, `do`, `pop`*
 
+### Searching Tasks
+
+Filter tasks by keyword. `td` performs a case-insensitive search across the task description, filename, and path.
+
+```bash
+td s "memory"
+```
+
+If you provide a search term, `td` will also search the **history** of removed/completed tasks and print matches in a distinct color. This lets you find previously deleted items without restoring the full list.
+
+*Shortcuts: `s`, `search`, `find`*
+
 ### Removing Tasks
 
 To delete tasks by ID without "doing" them. You can delete multiple tasks at once.
@@ -134,49 +129,49 @@ To delete tasks by ID without "doing" them. You can delete multiple tasks at onc
 td rm 2 4 5
 ```
 
-### Undo
+### History & Undo
 
-If you accidentally deleted a task or popped the wrong item, you can revert the last change.
+`td` keeps an append-only history of removed or completed tasks in `~/.config/td/td.lst.hist`.
+
+**Viewing History:**
+```bash
+td h
+# or
+td history
+```
+
+**Undo (Restore):**
+If you accidentally deleted a task, you can revert it.
+```bash
+td u        # Undo last change (step-wise)
+td u 12     # Restore specific History ID (HID) 12
+```
+
+**Cleaning History:**
+You can permanently remove items from history.
+```bash
+td rmh 1 5  # Remove history items with HID 1 and 5
+td ch       # Clear ALL history (permanent)
+```
+
+### Backup
+
+You can quickly create a backup of your configuration and todo list.
 
 ```bash
-td u
+td b
 ```
-*Shortcuts: `u`, `undo`*
+This prompts for confirmation and creates a `.tar.gz` archive of your `~/.config/td` directory in your **current working directory**.
 
-You can also restore a specific history entry by its history ID (HID):
-
-```bash
-td u 3
-```
-This restores the 3rd entry shown by the history command back into the active list.
+*Shortcuts: `b`, `bak`, `backup`*
 
 ### Clearing the List
 
-To remove all tasks:
+To remove all active tasks (moves them to history):
 
 ```bash
 td clear
 ```
-
-When you clear the list (or remove/pop tasks), `td` appends the removed lines to the history file. Use the `hist` command to review these entries.
-
-### History
-
-`td` keeps a simple append-only history of removed or completed tasks in `~/.config/td/td.lst.hist`.
-
-- Format: each history row is prefixed with an operation token and timestamp, for example:
-
-	```text
-	DEL 167xxxxxxx ~1600000000~/home/user/project~/path/file~Task message~
-	```
-
-- Commands:
-	- `td h` or `td history` — show removed/completed tasks (colorized and formatted). Note: the help output now lists `H` for the help shortcut and `h` for history.
-	- `td u` — undo the last change by restoring the most recent history entry back into the active list (step-wise undo). You can also use `td u <HID>` to restore a specific history ID.
-
-History output is colorized to distinguish it from the active todo list. This makes it easy to scan for previously removed items or to recover work you removed by mistake.
-
-If you would like more advanced history operations (restore a specific history entry, tail N entries, or clear history), those can be added as optional commands later.
 
 ## Configuration
 
@@ -197,6 +192,13 @@ PROJECTS_ONLY=false
 # If true, 'pop'/'next' will not delete the task from the list automatically
 PRESERVE_QUEUE=false
 
-# Display order for `td l` / `td` when listing tasks. Valid values: 'asc' (oldest first) or 'desc' (newest first).
+# Display order for `td l` / `td` list.
+# 'asc' = oldest first (default)
+# 'desc' = newest first
 LIST_ORDER=desc
+```
+
+You can also override options for a single command:
+```bash
+LIST_ORDER=asc td .
 ```

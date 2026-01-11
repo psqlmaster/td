@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.4.2
+# td v1.6.0
 # Context-aware todo list manager
 
 # handle debugging
@@ -29,12 +29,12 @@ QUEUE_MODE=lifo
 LIST_ORDER=desc
 
 function show_help {
-    echo -e "Minimal, context-aware todo list manager"
+    echo -e "Minimal, context-aware todo list manager v1.6.0"
     echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a|push [f] MSG       Add task"
     echo -e "  l|list or nothing    List tasks"
-    echo -e "  .|here               Show current dir tasks"
+    echo -e "  .|here [n|N]         Show or Next/Pop task in current dir"
     echo -e "  s|search STR         Search tasks"
     echo -e "  n|next [N]           Pop/Finish next task"
     echo -e "  rm <N> [N...]        Remove task ID(s)"
@@ -42,6 +42,7 @@ function show_help {
     echo -e "  c|clear              Clear all (move to history)"
     echo -e "  rmh <HID> [HID...]   Remove history ID(s)"
     echo -e "  ch|clearh            Clear history (permanent delete)"
+    echo -e "  b|bak                Backup config to current dir"
     echo -e "  H|help               Show help"
     echo -e "  h|history            Show removed tasks history"
     echo -e ""
@@ -440,6 +441,38 @@ function pop_from_stack {
     fi
 }
 
+function backup_data {
+    # Check if config directory exists
+    if [[ ! -d "${CONFIG_DIR}" ]]; then
+        echo -e "${RED}Error: Config directory ${CONFIG_DIR} does not exist.${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}Source:${NC} ${CONFIG_DIR}"
+    echo -e "${YELLOW}Dest:${NC}   ${PWD}"
+    
+    # Ask for user confirmation
+    read -p "Create backup of all config data to current directory? [y/N] " -n 1 -r
+    echo "" # move to new line
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${GRAY}Backup aborted.${NC}"
+        return
+    fi
+
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local archive_name="td_backup_${timestamp}.tar.gz"
+
+    # Create tar archive
+    # -C changes to CONFIG_DIR so the archive doesn't contain full absolute paths
+    if tar -czf "${archive_name}" -C "${CONFIG_DIR}" .; then
+        echo -e "${GREEN}Success:${NC} Backup saved to ${BLUE}${archive_name}${NC}"
+    else
+        echo -e "${RED}Error: Failed to create backup archive.${NC}"
+        exit 1
+    fi
+}
+
 # --- Main Logic ---
 config_if_needed
 
@@ -480,12 +513,87 @@ case "$CMD" in
     u|undo)
         undo_last_change
         ;;
-    here|.)
-        # determine the current context in the same way as td does when creating a task. 
-        CURRENT_CTX=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
-        # run show_todos with the filter variable set 
-        TD_ONLY_CONTEXT="$CURRENT_CTX" show_todos
+    b|bak|backup)
+        backup_data
         ;;
+    here|.)
+        # Determine current context (directory)
+        CURRENT_CTX=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+
+        # Check for arguments
+        if [[ $# -gt 0 ]]; then
+            ARG="$1"
+            TARGET_IDX=""
+
+            # Check: is this a 'next task' command or a specific number?
+            case "$ARG" in
+                n|next|do|pop|pp)
+                    # If "next" command, target the 1st task in the visible list
+                    TARGET_IDX=1
+                    ;;
+                *)
+                    # If it's a number, use it directly
+                    if [[ "$ARG" =~ ^[0-9]+$ ]]; then
+                        TARGET_IDX="$ARG"
+                    else
+                        echo -e "${RED}Error: Invalid argument '$ARG'. Use a number or 'n/next'.${NC}"
+                        exit 1
+                    fi
+                    ;;
+            esac
+
+            # FIX: Removed 'local' keyword because we are in global scope
+            _sort_order="${LIST_ORDER:-asc}"
+            _sort_order="${_sort_order//$'\r'/}"
+            _sort_order="${_sort_order,,}"
+
+            # AWK finds the real ID of the task positioned at TARGET_IDX within the current context
+            REAL_ID=$(awk -v ctx="$CURRENT_CTX" -v idx="$TARGET_IDX" -v ord="$_sort_order" -F"~" '
+            BEGIN { count=0 }
+            {
+                # $3 is path (context). Format: ~ts~path~file~task~
+                if ($3 == ctx) {
+                    count++
+                    matches[count] = NR
+                }
+            }
+            END {
+                if (count == 0) exit 1
+                
+                # With desc sort (newest on top), the 1st list element is the last matched line in file
+                if (ord == "desc") {
+                    target_pos = count - idx + 1
+                } else {
+                    target_pos = idx
+                }
+
+                # If position is valid, print the line number (Global ID)
+                if (target_pos > 0 && target_pos <= count) {
+                    print matches[target_pos]
+                } else {
+                    exit 1
+                }
+            }' "${TODO_LIST}")
+
+            # Handle search result
+            if [[ -z "$REAL_ID" ]]; then
+                if [[ "$TARGET_IDX" == "1" ]]; then
+                    echo -e "${BLUE}No context todos.${NC}"
+                    exit 0
+                else
+                    echo -e "${RED}Error: Task #$TARGET_IDX not found in current directory.${NC}"
+                    exit 1
+                fi
+            fi
+
+            # Execute/Pop task by real ID
+            pop_from_stack "$REAL_ID"
+
+        else
+            # No arguments — just show the list filtered by context
+            TD_ONLY_CONTEXT="$CURRENT_CTX" show_todos
+        fi
+        ;;   
     c|clear)
         # save all current lines to history
         if [[ -s "${TODO_LIST}" ]]; then
@@ -520,4 +628,3 @@ case "$CMD" in
         exit 1
         ;;
 esac
-
