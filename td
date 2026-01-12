@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.6.2
+# td v1.6.3
 # Context-aware todo list manager
 
 # handle debugging
@@ -29,7 +29,7 @@ QUEUE_MODE=lifo
 LIST_ORDER=desc
 
 function show_help {
-    echo -e "Minimal, context-aware todo list manager v1.6.2"
+    echo -e "Minimal, context-aware todo list manager v1.6.3"
     echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a|push [f] MSG       Add task"
@@ -342,39 +342,59 @@ function delete_todo {
         exit 1
     fi
 
+    local total
+    total=$(wc -l < "${TODO_LIST}")
+
+    # Determine current display order from config
+    local order="${LIST_ORDER:-asc}"
+    order="${order//$'\r'/}"
+    order="${order,,}"
+
+    local real_ids=()
     for id in "$@"; do
+        # Validate that the input is a number
         if ! [[ "$id" =~ ^[0-9]+$ ]]; then
             echo -e "${RED}Error: '$id' is not a number.${NC}"
             exit 1
         fi
-    done
-
-    local sorted_ids
-    sorted_ids=$(printf "%s\n" "$@" | sort -rn | uniq)
-
-    for id in $sorted_ids; do
-        local total
-        total=$(wc -l < "${TODO_LIST}")
-
+        
+        # Check if ID is within existing range
         if (( id > total )) || (( id < 1 )); then
             echo -e "${RED}Error: Task $id not found (skipped).${NC}"
             continue
         fi
 
+        # Map visual ID to the actual physical line number in the file
+        # If order is descending (newest on top), Visual ID 1 is the last line in the file
+        # Formula: Real_Line = Total_Lines - Visual_ID + 1
+        if [[ "${order}" == "desc" ]]; then
+            real_ids+=($(( total - id + 1 )))
+        else
+            real_ids+=($id)
+        fi
+    done
+
+    # Sort real line numbers in descending order before deleting
+    # This is crucial: deleting line 10 first ensures line 2 stays at index 2
+    local sorted_real_ids
+    sorted_real_ids=$(printf "%s\n" "${real_ids[@]}" | sort -rn | uniq)
+
+    for rid in $sorted_real_ids; do
         local line_content
-        line_content=$(sed "${id}q;d" "${TODO_LIST}")
+        line_content=$(sed "${rid}q;d" "${TODO_LIST}")
         local what=$(echo "${line_content}" | cut -d~ -f5)
 
-        # save deleted line to history for step-wise undo
+        # Archive the task to history before permanent removal
         append_history "${line_content}"
 
+        # Delete the specific line from the file
         if [[ $(uname -s) == "Darwin" ]]; then
-            sed -i '' "${id}d" "${TODO_LIST}"
+            sed -i '' "${rid}d" "${TODO_LIST}"
         else
-            sed -i "${id}d" "${TODO_LIST}"
+            sed -i "${rid}d" "${TODO_LIST}"
         fi
 
-        echo -e "${RED}Deleted ($id):${NC} $what"
+        echo -e "${RED}Deleted:${NC} $what"
     done
 }
 
