@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.6.1
+# td v1.6.2
 # Context-aware todo list manager
 
 # handle debugging
@@ -29,7 +29,7 @@ QUEUE_MODE=lifo
 LIST_ORDER=desc
 
 function show_help {
-    echo -e "Minimal, context-aware todo list manager v1.6.1"
+    echo -e "Minimal, context-aware todo list manager v1.6.2"
     echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a|push [f] MSG       Add task"
@@ -156,7 +156,7 @@ function push_to_stack {
         exit 1
     fi
 
-    _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+    _toplevel="${PWD}" 
     echo "~$(date +%s)~${_toplevel}~${_file}~${_msg}~" >> "${TODO_LIST}"
     echo -e "${BLUE}Saved.${NC} [$(wc -l "${TODO_LIST}" | cut -d' ' -f1)]"
 }
@@ -400,7 +400,7 @@ function pop_from_stack {
 
         if [[ "${PROJECTS_ONLY}" == 'true' ]]; then
             # Если включен режим "только проекты", фильтруем по контексту
-            _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+            _toplevel="${PWD}"
             LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
         else
             # Иначе берем просто следующую задачу по списку (Глобально)
@@ -523,7 +523,7 @@ case "$CMD" in
         ;;
     here|.)
         # Determine current context (directory)
-        CURRENT_CTX=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+        CURRENT_CTX="${PWD}" 
 
         # Check for arguments
         if [[ $# -gt 0 ]]; then
