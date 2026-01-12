@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.6.0
+# td v1.6.1
 # Context-aware todo list manager
 
 # handle debugging
@@ -29,7 +29,7 @@ QUEUE_MODE=lifo
 LIST_ORDER=desc
 
 function show_help {
-    echo -e "Minimal, context-aware todo list manager v1.6.0"
+    echo -e "Minimal, context-aware todo list manager v1.6.1"
     echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a|push [f] MSG       Add task"
@@ -386,6 +386,7 @@ function pop_from_stack {
     if [[ ${TODOS} -lt 1 ]]; then echo -e "${BLUE}Done!${NC}"; exit 0; fi
 
     if [[ -n "$requested_id" ]]; then
+        # Если передан ID (например, из команды td . n), берем конкретную строку
         if ! [[ "$requested_id" =~ ^[0-9]+$ ]]; then
              echo -e "${RED}Error: ID must be a number.${NC}"; exit 1
         fi
@@ -394,11 +395,15 @@ function pop_from_stack {
         fi
         LINE=$(sed "${requested_id}q;d" "${TODO_LIST}")
     else
-        _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+        # Логика для td n (без параметров)
         [[ "${QUEUE_MODE}" == "lifo" ]] && CMD="tail" || CMD="head"
 
-        LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
-        if [[ "${PROJECTS_ONLY}" == 'false' ]] && [[ -z "${LINE}" ]]; then
+        if [[ "${PROJECTS_ONLY}" == 'true' ]]; then
+            # Если включен режим "только проекты", фильтруем по контексту
+            _toplevel=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+            LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
+        else
+            # Иначе берем просто следующую задачу по списку (Глобально)
             LINE=$($CMD -n 1 "${TODO_LIST}")
         fi
     fi
