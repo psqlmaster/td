@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# td v1.6.3
+# td v1.6.4
 # Context-aware todo list manager
 
 # handle debugging
@@ -29,7 +29,7 @@ QUEUE_MODE=lifo
 LIST_ORDER=desc
 
 function show_help {
-    echo -e "Minimal, context-aware todo list manager v1.6.3"
+    echo -e "Minimal, context-aware todo list manager v1.6.4"
     echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
     echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
     echo -e "  a|push [f] MSG       Add task"
@@ -402,34 +402,49 @@ function pop_from_stack {
     local requested_id="$1"
     local LINE=""
     
-    TODOS=$(wc -l "${TODO_LIST}" 2>/dev/null | cut -d' ' -f1)
-    if [[ ${TODOS} -lt 1 ]]; then echo -e "${BLUE}Done!${NC}"; exit 0; fi
+    # Получаем общее количество задач
+    local total_todos
+    total_todos=$(wc -l < "${TODO_LIST}" 2>/dev/null || echo 0)
+    
+    if [[ ${total_todos} -lt 1 ]]; then echo -e "${BLUE}Done!${NC}"; exit 0; fi
 
     if [[ -n "$requested_id" ]]; then
-        # Если передан ID (например, из команды td . n), берем конкретную строку
         if ! [[ "$requested_id" =~ ^[0-9]+$ ]]; then
              echo -e "${RED}Error: ID must be a number.${NC}"; exit 1
         fi
-        if (( requested_id > TODOS )) || (( requested_id < 1 )); then
+        if (( requested_id > total_todos )) || (( requested_id < 1 )); then
              echo -e "${RED}Error: Task $requested_id not found.${NC}"; exit 1
         fi
-        LINE=$(sed "${requested_id}q;d" "${TODO_LIST}")
+
+        # Исправление: Маппинг визуального ID на физическую строку файла
+        local order="${LIST_ORDER:-asc}"
+        order="${order//$'\r'/}"
+        order="${order,,}"
+        
+        local real_id
+        if [[ "${order}" == "desc" ]]; then
+            # Если порядок обратный, ID 1 — это последняя строка (total_todos)
+            real_id=$(( total_todos - requested_id + 1 ))
+        else
+            real_id=$requested_id
+        fi
+        
+        LINE=$(sed "${real_id}q;d" "${TODO_LIST}")
     else
-        # Логика для td n (без параметров)
+        # Логика для td n без аргументов (следующая задача по очереди)
         [[ "${QUEUE_MODE}" == "lifo" ]] && CMD="tail" || CMD="head"
 
         if [[ "${PROJECTS_ONLY}" == 'true' ]]; then
-            # Если включен режим "только проекты", фильтруем по контексту
             _toplevel="${PWD}"
             LINE=$(grep "~${_toplevel}~" "${TODO_LIST}" | $CMD -n 1)
         else
-            # Иначе берем просто следующую задачу по списку (Глобально)
             LINE=$($CMD -n 1 "${TODO_LIST}")
         fi
     fi
 
     if [[ -z "${LINE}" ]]; then echo -e "${BLUE}No context todos.${NC}"; exit 0; fi
 
+    # Далее идет старый код обработки переменной LINE...
     RAW_TS=$(echo "${LINE}" | cut -d~ -f2)
     WHERE=$(echo "${LINE}" | cut -d~ -f3)
     FILE=$(echo "${LINE}" | cut -d~ -f4)
@@ -446,18 +461,12 @@ function pop_from_stack {
     fi
 
     if [[ "${PRESERVE_QUEUE}" == 'false' ]]; then
-        # normalize LINE (strip possible leading line-number from grep -n)
-        local raw_line
-        raw_line="${LINE}"
+        local raw_line="${LINE}"
         if echo "${raw_line}" | grep -qE '^[0-9]+:'; then
             raw_line=$(echo "${raw_line}" | sed 's/^[0-9]\+://')
         fi
-
-        # save to history before removing
         append_history "${raw_line}"
 
-        # Remove by timestamp (no temp file). This deletes any line containing ~<timestamp>~.
-        # Note: this will remove all lines with the same internal timestamp.
         if [[ $(uname -s) == "Darwin" ]]; then
             sed -i '' "/~${RAW_TS}~/d" "${TODO_LIST}"
         else
