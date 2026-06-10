@@ -28,31 +28,45 @@ PROJECTS_ONLY=false
 QUEUE_MODE=lifo
 LIST_ORDER=desc
 
+# Добавьте это к вашим цветам в начале скрипта, если их нет
+BOLD='\033[1m'
+ITALIC='\033[3m'
+
 function show_help {
-    echo -e "Minimal, context-aware todo list manager v1.6.4"
-    echo -e "Copyright (c) 2026, Alexander Shcheglov @sqlmaster"
-    echo -e "${BLUE}Usage: td [cmd] [args]${NC}"
-    echo -e "  a|push [f] MSG       Add task"
-    echo -e "  l|list or nothing    List tasks"
-    echo -e "  .|here [n|N]         Show or Next/Pop task in current dir"
-    echo -e "  s|search STR         Search tasks"
-    echo -e "  n|next [N]           Pop/Finish next task"
-    echo -e "  rm <N> [N...]        Remove task ID(s)"
-    echo -e "  u|undo [HID]         Undo last change or restore specific history ID"
-    echo -e "  c|clear              Clear all (move to history)"
-    echo -e "  rmh <HID> [HID...]   Remove history ID(s)"
-    echo -e "  ch|clearh            Clear history (permanent delete)"
-    echo -e "  b|bak                Backup config to current dir"
-    echo -e "  H|help               Show help"
-    echo -e "  h|history            Show removed tasks history"
+    echo -e "${BOLD}${CYAN}td${NC} — Minimal, context-aware todo list manager ${GRAY}v1.6.4${NC}"
+    echo -e "${GRAY}Copyright (c) 2026, Alexander Shcheglov @sqlmaster${NC}\n"
+
+    echo -e "${YELLOW}${BOLD}USAGE:${NC}"
+    echo -e "  ${BLUE}td${NC} ${GREEN}[command]${NC} ${MAGENTA}[arguments]${NC}\n"
+
+    echo -e "${YELLOW}${BOLD}CORE COMMANDS:${NC}"
+    printf "  ${GREEN}%-18s${NC} %s\n" "a, push [f] MSG" "Add new task ${GRAY}(f: optional file reference)${NC}"
+    printf "  ${GREEN}%-18s${NC} %s\n" "l, list"          "Show all tasks ${GRAY}(default action)${NC}"
+    printf "  ${GREEN}%-18s${NC} %s\n" "., here [n|N]"    "Tasks in current directory ${GRAY}(n: next, N: specific ID)${NC}"
+    printf "  ${GREEN}%-18s${NC} %s\n" "s, search STR"    "Search in tasks and history"
+    printf "  ${GREEN}%-18s${NC} %s\n" "n, next [ID]"     "Complete and remove task ${GRAY}(LIFO/FIFO based on config)${NC}"
+    printf "  ${GREEN}%-18s${NC} %s\n" "u, undo [HID]"    "Undo last change or restore from history ID"
+    printf "  ${GREEN}%-18s${NC} %s\n" "rm <ID...>"       "Remove specific task(s) by ID"
+    printf "  ${GREEN}%-18s${NC} %s\n" "c, clear"         "Move all tasks to history"
+
+    echo -e "\n${YELLOW}${BOLD}HISTORY & MAINTENANCE:${NC}"
+    printf "  ${GREEN}%-18s${NC} %s\n" "h, history"       "Show removed tasks history"
+    printf "  ${GREEN}%-18s${NC} %s\n" "rmh <HID...>"     "Permanently delete history ID(s)"
+    printf "  ${GREEN}%-18s${NC} %s\n" "ch, clearh"       "Clear all history"
+    printf "  ${GREEN}%-18s${NC} %s\n" "b, bak"           "Backup config and lists to current dir"
+    printf "  ${GREEN}%-18s${NC} %s\n" "-h, --help"       "Show this professional help message"
+
+    echo -e "\n${YELLOW}${BOLD}CONFIGURATION:${NC}"
+    echo -e "  File: ${CYAN}${CONFIG_DIR}/${CONFIG_FILE}${NC}"
+    echo -e "  ${GRAY}Edit file or export ENV variables to customize:${NC}"
+    
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "LIST_ORDER" "asc|desc" "Display order for list"
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "QUEUE_MODE" "lifo|fifo" "Selection logic for 'next'"
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "PRESERVE_QUEUE" "true|fals" "Don't delete task when popping"
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "PROJECTS_ONLY" "true|fals" "Filter by current directory"
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "DEFAULT_ACTION" "list|help" "Action when no args provided"
+    
     echo -e ""
-    echo -e "Config file: ${CYAN}cat ${CONFIG_DIR}/${CONFIG_FILE}${NC}"
-    echo -e "  Shows current configuration and available options:"
-    echo -e "    - LIST_ORDER=asc|desc        Display order for \`td\` list"
-    echo -e "    - QUEUE_MODE=lifo|fifo       How next task is selected"
-    echo -e "    - PRESERVE_QUEUE=true|false  Keep tasks when popping"
-    echo -e "    - PROJECTS_ONLY=true|false   Prefer project-scoped tasks"
-    echo -e "    - DEFAULT_ACTION=list|help   Default command when running \`td\` without args"
 }
 
 function config_if_needed {
@@ -645,7 +659,7 @@ case "$CMD" in
     a|add|p|push)
         push_to_stack "$@"
         ;;
-    H|help|--help)
+   -h|--help|help|H)
         show_help
         exit 0
         ;;
