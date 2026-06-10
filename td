@@ -13,13 +13,16 @@ TODO_LIST="${CONFIG_DIR}/td.lst"
 HIST_FILE="${CONFIG_DIR}/td.lst.hist"
 
 # Colors
-NC='\033[0m'
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-GRAY='\033[1;30m'
-CYAN='\033[0;36m'
+NC=$'\e[0m'
+BOLD=$'\e[1m'
+ITALIC=$'\e[3m'
+BLUE=$'\e[34m'
+GREEN=$'\e[32m'
+YELLOW=$'\e[33m'
+RED=$'\e[31m'
+GRAY=$'\e[90m'
+CYAN=$'\e[36m'
+MAGENTA=$'\e[35m'
 
 # Config defaults
 DEFAULT_ACTION=list
@@ -28,18 +31,14 @@ PROJECTS_ONLY=false
 QUEUE_MODE=lifo
 LIST_ORDER=desc
 
-# Добавьте это к вашим цветам в начале скрипта, если их нет
-BOLD='\033[1m'
-ITALIC='\033[3m'
-
 function show_help {
-    echo -e "${BOLD}${CYAN}td${NC} - Minimal, context-aware todo list manager ${GRAY}v1.6.5${NC}"
-    echo -e "${GRAY}Copyright (c) 2026, Alexander Shcheglov @sqlmaster${NC}\n"
+    printf "%s%s - Minimal, context-aware todo list manager %s%s%s\n" "$BOLD" "$CYAN" "$GRAY" "v1.6.6" "$NC"
+    printf "%sCopyright (c) 2026, Alexander Shcheglov @sqlmaster%s\n\n" "$GRAY" "$NC"
 
-    echo -e "${YELLOW}${BOLD}USAGE:${NC}"
-    echo -e "  ${BLUE}td${NC} ${GREEN}[command]${NC} ${MAGENTA}[arguments]${NC}\n"
+    printf "%s%sUSAGE:%s\n" "$YELLOW" "$BOLD" "$NC"
+    printf "  %std%s %s[command]%s %s[arguments]%s\n\n" "$BLUE" "$NC" "$GREEN" "$NC" "$MAGENTA" "$NC"
 
-    echo -e "${YELLOW}${BOLD}CORE COMMANDS:${NC}"
+    printf "%s%sCORE COMMANDS:%s\n" "$YELLOW" "$BOLD" "$NC"
     printf "  ${GREEN}%-18s${NC} %s\n" "a, push [f] MSG" "Add new task ${GRAY}(f: optional file reference)${NC}"
     printf "  ${GREEN}%-18s${NC} %s\n" "l, list"          "Show all tasks ${GRAY}(default action)${NC}"
     printf "  ${GREEN}%-18s${NC} %s\n" "., here [n|N]"    "Tasks in current directory ${GRAY}(n: next, N: specific ID)${NC}"
@@ -49,24 +48,24 @@ function show_help {
     printf "  ${GREEN}%-18s${NC} %s\n" "rm <ID...>"       "Remove specific task(s) by ID"
     printf "  ${GREEN}%-18s${NC} %s\n" "c, clear"         "Move all tasks to history"
 
-    echo -e "\n${YELLOW}${BOLD}HISTORY & MAINTENANCE:${NC}"
+    printf "\n%s%sHISTORY & MAINTENANCE:%s\n" "$YELLOW" "$BOLD" "$NC"
     printf "  ${GREEN}%-18s${NC} %s\n" "h, history"       "Show removed tasks history"
     printf "  ${GREEN}%-18s${NC} %s\n" "rmh <HID...>"     "Permanently delete history ID(s)"
     printf "  ${GREEN}%-18s${NC} %s\n" "ch, clearh"       "Clear all history"
     printf "  ${GREEN}%-18s${NC} %s\n" "b, bak"           "Backup config and lists to current dir"
     printf "  ${GREEN}%-18s${NC} %s\n" "-h, --help"       "Show this professional help message"
 
-    echo -e "\n${YELLOW}${BOLD}CONFIGURATION:${NC}"
-    echo -e "  File: ${CYAN}${CONFIG_DIR}/${CONFIG_FILE}${NC}"
-    echo -e "  ${GRAY}Edit file or export ENV variables to customize:${NC}"
+    printf "\n%s%sCONFIGURATION:%s\n" "$YELLOW" "$BOLD" "$NC"
+    printf "  File: %s%s/%s%s\n" "$CYAN" "$CONFIG_DIR" "$CONFIG_FILE" "$NC"
+    printf "  %sEdit file or export ENV variables to customize:%s\n" "$GRAY" "$NC"
     
     printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "LIST_ORDER" "asc|desc" "Display order for list"
     printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "QUEUE_MODE" "lifo|fifo" "Selection logic for 'next'"
-    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "PRESERVE_QUEUE" "true|fals" "Don't delete task when popping"
-    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "PROJECTS_ONLY" "true|fals" "Filter by current directory"
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "PRESERVE_QUEUE" "true|false" "Don't delete task when popping"
+    printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "PROJECTS_ONLY" "true|false" "Filter by current directory"
     printf "    ${BLUE}%-18s${NC} ${GRAY}%-10s${NC} %s\n" "DEFAULT_ACTION" "list|help" "Action when no args provided"
     
-    echo -e ""
+    printf "\n"
 }
 
 function config_if_needed {
