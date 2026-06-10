@@ -33,7 +33,7 @@ BOLD='\033[1m'
 ITALIC='\033[3m'
 
 function show_help {
-    echo -e "${BOLD}${CYAN}td${NC} — Minimal, context-aware todo list manager ${GRAY}v1.6.4${NC}"
+    echo -e "${BOLD}${CYAN}td${NC} - Minimal, context-aware todo list manager ${GRAY}v1.6.5${NC}"
     echo -e "${GRAY}Copyright (c) 2026, Alexander Shcheglov @sqlmaster${NC}\n"
 
     echo -e "${YELLOW}${BOLD}USAGE:${NC}"
