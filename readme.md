@@ -20,7 +20,13 @@ Unlike standard todo lists, `td` captures the **context** of your task. It recor
 
 ```bash
 git clone --depth 1 https://github.com/psqlmaster/td.git && \
-cd td && sudo cp td /usr/local/bin && sudo chmod +x /usr/local/bin/td && td -h
+cd td && \
+install -m 755 td ~/.local/bin/td
+
+if [ -n "$ZSH_VERSION" ]; then
+    grep -qxF 'unsetopt BARE_GLOB_QUAL' ~/.zshrc 2>/dev/null || \
+        echo 'unsetopt BARE_GLOB_QUAL' >> ~/.zshrc
+fi
 ```
 
 ## Usage
